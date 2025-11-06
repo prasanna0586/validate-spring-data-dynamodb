@@ -5,6 +5,11 @@ on:
     branches:
       - '**'  # Trigger on push to any branch
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -21,7 +26,7 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: mvn clean verify
+        run: mvn clean verify --batch-mode
 
       - name: Publish Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
