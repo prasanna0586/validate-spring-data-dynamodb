@@ -1,7 +1,6 @@
 package org.example.dynamodb.service;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
 import com.amazonaws.services.dynamodbv2.model.*;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
@@ -52,11 +51,8 @@ class DocumentMetadataServiceIntegrationTest {
     @Autowired
     private AmazonDynamoDB amazonDynamoDB;
 
-    @Autowired
-    private DynamoDBMapper dynamoDBMapper;
-
     private static boolean tableCreated = false;
-    private static List<String> testDocumentIds = new ArrayList<>();
+    private static final List<String> testDocumentIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -308,11 +304,11 @@ class DocumentMetadataServiceIntegrationTest {
 
         // When
         List<DocumentMetadata> results = documentMetadataService.getDocumentsByMemberIdAndCategoriesIn(
-                105, Arrays.asList(1001));
+                105, List.of(1001));
 
         // Then
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).getDocumentCategory()).isEqualTo(1001);
+        assertThat(results.getFirst().getDocumentCategory()).isEqualTo(1001);
     }
 
     @Test
@@ -344,7 +340,7 @@ class DocumentMetadataServiceIntegrationTest {
 
         // When - Query for non-existent category
         List<DocumentMetadata> results = documentMetadataService.getDocumentsByMemberIdAndCategoriesIn(
-                107, Arrays.asList(9999));
+                107, List.of(9999));
 
         // Then
         assertThat(results).isEmpty();
@@ -363,11 +359,11 @@ class DocumentMetadataServiceIntegrationTest {
 
         // When
         List<DocumentMetadata> results = documentMetadataService.getDocumentsByMemberIdAndSubCategoriesIn(
-                108, Arrays.asList(2001));
+                108, List.of(2001));
 
         // Then
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).getDocumentSubCategory()).isEqualTo(2001);
+        assertThat(results.getFirst().getDocumentSubCategory()).isEqualTo(2001);
     }
 
     @Test
@@ -399,7 +395,7 @@ class DocumentMetadataServiceIntegrationTest {
 
         // When - Query for non-existent sub-category
         List<DocumentMetadata> results = documentMetadataService.getDocumentsByMemberIdAndSubCategoriesIn(
-                110, Arrays.asList(9999));
+                110, List.of(9999));
 
         // Then
         assertThat(results).isEmpty();

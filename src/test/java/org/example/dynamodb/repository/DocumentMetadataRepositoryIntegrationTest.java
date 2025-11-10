@@ -151,8 +151,8 @@ class DocumentMetadataRepositoryIntegrationTest {
 
         // Then
         assertThat(results.getContent()).hasSize(1);
-        assertThat(results.getContent().get(0).getMemberId()).isEqualTo(3);
-        assertThat(results.getContent().get(0).getUniqueDocumentId()).isEqualTo("test3-doc1");
+        assertThat(results.getContent().getFirst().getMemberId()).isEqualTo(3);
+        assertThat(results.getContent().getFirst().getUniqueDocumentId()).isEqualTo("test3-doc1");
         assertThat(results.hasNext()).isFalse();
     }
 
@@ -221,8 +221,8 @@ class DocumentMetadataRepositoryIntegrationTest {
 
         // Then - Should only get doc2 (created 3 days ago)
         assertThat(results).hasSize(1);
-        assertThat(results.get(0).getUniqueDocumentId()).isEqualTo("test6-doc2");
-        assertThat(results.get(0).getCreatedAt()).isBetween(startDate, endDate);
+        assertThat(results.getFirst().getUniqueDocumentId()).isEqualTo("test6-doc2");
+        assertThat(results.getFirst().getCreatedAt()).isBetween(startDate, endDate);
     }
 
     @Test
@@ -313,7 +313,7 @@ class DocumentMetadataRepositoryIntegrationTest {
 
         // When
         List<DocumentMetadata> results = repository.findByMemberIdAndDocumentCategoryIn(
-                10, Arrays.asList(101));
+                10, List.of(101));
 
         // Then
         assertThat(results).hasSize(2);

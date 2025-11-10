@@ -204,7 +204,7 @@ class DocumentMetadataServiceTest {
     void testGetDocumentsByMemberIdAndCategoriesIn_EmptyResult() {
         // Given
         Integer memberId = 1;
-        List<Integer> categories = Arrays.asList(999);
+        List<Integer> categories = List.of(999);
 
         when(documentMetadataRepository.findByMemberIdAndDocumentCategoryIn(memberId, categories))
                 .thenReturn(Collections.emptyList());
@@ -246,7 +246,7 @@ class DocumentMetadataServiceTest {
     void testGetDocumentsByMemberIdAndSubCategoriesIn_EmptyResult() {
         // Given
         Integer memberId = 1;
-        List<Integer> subCategories = Arrays.asList(999);
+        List<Integer> subCategories = List.of(999);
 
         when(documentMetadataRepository.findByMemberIdAndDocumentSubCategoryIn(memberId, subCategories))
                 .thenReturn(Collections.emptyList());

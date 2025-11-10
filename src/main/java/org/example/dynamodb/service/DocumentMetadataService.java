@@ -13,6 +13,7 @@ import java.util.Optional;
 
 @Service
 @Slf4j
+@SuppressWarnings("unused") // Public API methods may not be used yet but are part of the service contract
 public class DocumentMetadataService {
 
     private final DocumentMetadataRepository documentMetadataRepository;

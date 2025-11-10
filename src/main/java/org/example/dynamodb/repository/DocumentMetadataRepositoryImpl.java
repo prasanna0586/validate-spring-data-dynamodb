@@ -12,11 +12,11 @@ import org.socialsignin.spring.data.dynamodb.core.DynamoDBOperations;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 // Note: This class does NOT need @Repository annotation
 // Spring Data automatically detects this class by naming convention: <RepositoryName>Impl
 @Slf4j
+@SuppressWarnings("unused") // Class is used by Spring Data at runtime via naming convention
 public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositoryCustom {
 
     private final DynamoDBOperations dynamoDBOperations;
@@ -49,13 +49,13 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
                 PaginatedQueryList<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query);
                 return new ArrayList<>(results);
 
-            })).collect(Collectors.toList());
+            })).toList();
 
         // Wait for all queries to complete and flatten the results
         List<DocumentMetadata> result = futures.stream()
                 .map(CompletableFuture::join)
                 .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .toList();
 
         log.info("Exiting findByMemberIdAndDocumentCategoryIn - memberId: {}, resultCount: {}",
                 memberId, result.size());
@@ -86,13 +86,13 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
                 PaginatedQueryList<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query);
                 return new ArrayList<>(results);
 
-            })).collect(Collectors.toList());
+            })).toList();
 
         // Wait for all queries to complete and flatten the results
         List<DocumentMetadata> result = futures.stream()
                 .map(CompletableFuture::join)
                 .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .toList();
 
         log.info("Exiting findByMemberIdAndDocumentSubCategoryIn - memberId: {}, resultCount: {}",
                 memberId, result.size());
