@@ -43,6 +43,7 @@ class DocumentMetadataRepositoryIntegrationTest {
         registry.add("aws.dynamodb.region", () -> "us-east-1");
         registry.add("aws.dynamodb.accessKey", () -> "dummy");
         registry.add("aws.dynamodb.secretKey", () -> "dummy");
+        registry.add("app.environment.prefix", () -> "test");
     }
 
     @Autowired
@@ -77,10 +78,11 @@ class DocumentMetadataRepositoryIntegrationTest {
 
     private void createTableIfNotExists() {
         try {
-            amazonDynamoDB.describeTable("DocumentMetadata");
+            amazonDynamoDB.describeTable("test-DocumentMetadata");
         } catch (ResourceNotFoundException e) {
             CreateTableRequest createTableRequest = new DynamoDBMapper(amazonDynamoDB)
                     .generateCreateTableRequest(DocumentMetadata.class);
+            createTableRequest.setTableName("test-DocumentMetadata");
 
             createTableRequest.setProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
 

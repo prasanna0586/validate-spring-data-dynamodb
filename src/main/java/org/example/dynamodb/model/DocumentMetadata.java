@@ -46,4 +46,7 @@ public class DocumentMetadata {
 
     @DynamoDBAttribute(attributeName = "notes")
     private String notes;
+
+    @DynamoDBVersionAttribute
+    private Long version;
 }

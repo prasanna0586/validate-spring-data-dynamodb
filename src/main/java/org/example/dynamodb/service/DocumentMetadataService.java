@@ -1,6 +1,8 @@
 package org.example.dynamodb.service;
 
+import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import lombok.extern.slf4j.Slf4j;
+import org.example.dynamodb.exception.OptimisticLockingException;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.example.dynamodb.repository.DocumentMetadataRepository;
 import org.springframework.data.domain.Pageable;
@@ -128,19 +130,31 @@ public class DocumentMetadataService {
 
     /**
      * Save a document metadata.
+     * Handles optimistic locking conflicts by catching ConditionalCheckFailedException.
      *
      * @param documentMetadata the document metadata to save
      * @return the saved DocumentMetadata
+     * @throws OptimisticLockingException if the document was modified by another user
      */
     public DocumentMetadata saveDocument(DocumentMetadata documentMetadata) {
-        log.info("Entering saveDocument - uniqueDocumentId: {}, memberId: {}",
-                documentMetadata.getUniqueDocumentId(), documentMetadata.getMemberId());
+        log.info("Entering saveDocument - uniqueDocumentId: {}, memberId: {}, version: {}",
+                documentMetadata.getUniqueDocumentId(), documentMetadata.getMemberId(),
+                documentMetadata.getVersion());
 
-        DocumentMetadata savedDocument = documentMetadataRepository.save(documentMetadata);
-
-        log.info("Exiting saveDocument - uniqueDocumentId: {}", savedDocument.getUniqueDocumentId());
-
-        return savedDocument;
+        try {
+            DocumentMetadata savedDocument = documentMetadataRepository.save(documentMetadata);
+            log.info("Exiting saveDocument - uniqueDocumentId: {}, new version: {}",
+                    savedDocument.getUniqueDocumentId(), savedDocument.getVersion());
+            return savedDocument;
+        } catch (ConditionalCheckFailedException e) {
+            log.warn("Optimistic locking conflict for document: {}, attempted version: {}",
+                    documentMetadata.getUniqueDocumentId(), documentMetadata.getVersion());
+            throw new OptimisticLockingException(
+                    "Document was modified by another user. Please refresh and try again.",
+                    documentMetadata.getUniqueDocumentId(),
+                    documentMetadata.getVersion(),
+                    e);
+        }
     }
 
     /**

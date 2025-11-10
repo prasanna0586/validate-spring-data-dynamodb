@@ -2,6 +2,7 @@ package org.example.dynamodb.service;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.model.*;
+import org.example.dynamodb.exception.OptimisticLockingException;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Testcontainers
@@ -43,6 +45,7 @@ class DocumentMetadataServiceIntegrationTest {
         registry.add("aws.dynamodb.region", () -> "us-east-1");
         registry.add("aws.dynamodb.accessKey", () -> "dummy");
         registry.add("aws.dynamodb.secretKey", () -> "dummy");
+        registry.add("app.environment.prefix", () -> "test");
     }
 
     @Autowired
@@ -68,7 +71,7 @@ class DocumentMetadataServiceIntegrationTest {
         for (String docId : testDocumentIds) {
             try {
                 amazonDynamoDB.deleteItem(new DeleteItemRequest()
-                        .withTableName("DocumentMetadata")
+                        .withTableName("test-DocumentMetadata")
                         .withKey(java.util.Collections.singletonMap(
                                 "uniqueDocumentId",
                                 new AttributeValue(docId))));
@@ -79,7 +82,7 @@ class DocumentMetadataServiceIntegrationTest {
 
         // Delete table
         try {
-            amazonDynamoDB.deleteTable("DocumentMetadata");
+            amazonDynamoDB.deleteTable("test-DocumentMetadata");
         } catch (Exception e) {
             // Ignore if table doesn't exist
         }
@@ -87,7 +90,7 @@ class DocumentMetadataServiceIntegrationTest {
 
     private void createTable() {
         CreateTableRequest createTableRequest = new CreateTableRequest()
-                .withTableName("DocumentMetadata")
+                .withTableName("test-DocumentMetadata")
                 .withKeySchema(
                         new KeySchemaElement("uniqueDocumentId", KeyType.HASH))
                 .withAttributeDefinitions(
@@ -484,5 +487,111 @@ class DocumentMetadataServiceIntegrationTest {
         assertThat(retrieved).isPresent();
         assertThat(retrieved.get().getNotes()).isEqualTo("Updated notes");
         assertThat(retrieved.get().getUpdatedBy()).isEqualTo("user2");
+    }
+
+    // ==================== Optimistic Locking Tests ====================
+
+    @Test
+    @Order(17)
+    @DisplayName("Test 17: Optimistic locking - Version is set on initial save")
+    void testOptimisticLocking_VersionSetOnInitialSave() {
+        // Given
+        DocumentMetadata doc = createTestDocument("service-test17-doc1", 114, 1001, 2001, "user1");
+        assertThat(doc.getVersion()).isNull(); // Version is null before save
+
+        // When
+        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
+
+        // Then
+        assertThat(savedDoc.getVersion()).isNotNull();
+        assertThat(savedDoc.getVersion()).isEqualTo(1L); // First version should be 1
+    }
+
+    @Test
+    @Order(18)
+    @DisplayName("Test 18: Optimistic locking - Version is incremented on update")
+    void testOptimisticLocking_VersionIncrementedOnUpdate() {
+        // Given - Create and save document
+        DocumentMetadata doc = createTestDocument("service-test18-doc1", 115, 1001, 2001, "user1");
+        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
+        Long initialVersion = savedDoc.getVersion();
+        assertThat(initialVersion).isEqualTo(1L);
+
+        // When - Update the document
+        savedDoc.setNotes("Updated notes");
+        DocumentMetadata updatedDoc = documentMetadataService.saveDocument(savedDoc);
+
+        // Then - Version should be incremented
+        assertThat(updatedDoc.getVersion()).isEqualTo(2L);
+        assertThat(updatedDoc.getVersion()).isGreaterThan(initialVersion);
+
+        // When - Update again
+        updatedDoc.setNotes("Updated notes again");
+        DocumentMetadata updatedDoc2 = documentMetadataService.saveDocument(updatedDoc);
+
+        // Then - Version should be incremented again
+        assertThat(updatedDoc2.getVersion()).isEqualTo(3L);
+    }
+
+    @Test
+    @Order(19)
+    @DisplayName("Test 19: Optimistic locking - Concurrent update throws OptimisticLockingException")
+    void testOptimisticLocking_ConcurrentUpdateThrowsException() {
+        // Given - Create and save document
+        DocumentMetadata doc = createTestDocument("service-test19-doc1", 116, 1001, 2001, "user1");
+        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
+        assertThat(savedDoc.getVersion()).isEqualTo(1L);
+
+        // Simulate two users retrieving the same document
+        Optional<DocumentMetadata> user1Doc = documentMetadataService.getDocumentById("service-test19-doc1");
+        Optional<DocumentMetadata> user2Doc = documentMetadataService.getDocumentById("service-test19-doc1");
+
+        assertThat(user1Doc).isPresent();
+        assertThat(user2Doc).isPresent();
+        assertThat(user1Doc.get().getVersion()).isEqualTo(1L);
+        assertThat(user2Doc.get().getVersion()).isEqualTo(1L);
+
+        // When - User 1 updates successfully
+        user1Doc.get().setNotes("User 1 update");
+        DocumentMetadata user1Updated = documentMetadataService.saveDocument(user1Doc.get());
+        assertThat(user1Updated.getVersion()).isEqualTo(2L);
+
+        // Then - User 2 update should fail due to stale version
+        user2Doc.get().setNotes("User 2 update");
+        assertThatThrownBy(() -> documentMetadataService.saveDocument(user2Doc.get()))
+                .isInstanceOf(OptimisticLockingException.class)
+                .hasMessageContaining("Document was modified by another user")
+                .satisfies(exception -> {
+                    OptimisticLockingException ole = (OptimisticLockingException) exception;
+                    assertThat(ole.getDocumentId()).isEqualTo("service-test19-doc1");
+                    assertThat(ole.getAttemptedVersion()).isEqualTo(1L);
+                });
+
+        // Verify the document has user1's changes, not user2's
+        Optional<DocumentMetadata> finalDoc = documentMetadataService.getDocumentById("service-test19-doc1");
+        assertThat(finalDoc).isPresent();
+        assertThat(finalDoc.get().getNotes()).isEqualTo("User 1 update");
+        assertThat(finalDoc.get().getVersion()).isEqualTo(2L);
+    }
+
+    @Test
+    @Order(20)
+    @DisplayName("Test 20: Optimistic locking - Update with correct version succeeds")
+    void testOptimisticLocking_UpdateWithCorrectVersionSucceeds() {
+        // Given - Create and save document
+        DocumentMetadata doc = createTestDocument("service-test20-doc1", 117, 1001, 2001, "user1");
+        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
+
+        // Simulate user retrieving the document after an update
+        Optional<DocumentMetadata> userDoc = documentMetadataService.getDocumentById("service-test20-doc1");
+        assertThat(userDoc).isPresent();
+
+        // When - User updates with the current version
+        userDoc.get().setNotes("Updated with correct version");
+        DocumentMetadata updated = documentMetadataService.saveDocument(userDoc.get());
+
+        // Then - Update should succeed
+        assertThat(updated.getVersion()).isEqualTo(2L);
+        assertThat(updated.getNotes()).isEqualTo("Updated with correct version");
     }
 }
