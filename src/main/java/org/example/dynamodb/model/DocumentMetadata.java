@@ -17,19 +17,20 @@ public class DocumentMetadata {
     @DynamoDBHashKey(attributeName = "uniqueDocumentId")
     private String uniqueDocumentId;
 
-    @DynamoDBIndexHashKey(globalSecondaryIndexName = "memberId-createdAt-index", attributeName = "memberId")
+    @DynamoDBIndexHashKey(globalSecondaryIndexNames = {
+            "memberId-documentCategory-index",
+            "memberId-documentSubCategory-index",
+            "memberId-createdAt-index"
+    }, attributeName = "memberId")
     private Integer memberId;
 
-    @DynamoDBIndexHashKey(globalSecondaryIndexName = "documentCategory-createdAt-index", attributeName = "documentCategory")
+    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-documentCategory-index", attributeName = "documentCategory")
     private Integer documentCategory;
 
-    @DynamoDBIndexHashKey(globalSecondaryIndexName = "documentSubCategory-createdAt-index", attributeName = "documentSubCategory")
+    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-documentSubCategory-index", attributeName = "documentSubCategory")
     private Integer documentSubCategory;
-    @DynamoDBIndexRangeKey(globalSecondaryIndexNames = {
-            "memberId-createdAt-index",
-            "documentCategory-createdAt-index",
-            "documentSubCategory-createdAt-index"
-    }, attributeName = "createdAt")
+
+    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-createdAt-index", attributeName = "createdAt")
     @DynamoDBTypeConverted(converter = InstantConverter.class)
     private Instant createdAt;
 

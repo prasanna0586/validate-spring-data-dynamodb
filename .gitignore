@@ -5,10 +5,7 @@ target/
 .kotlin
 
 ### IntelliJ IDEA ###
-.idea/modules.xml
-.idea/jarRepositories.xml
-.idea/compiler.xml
-.idea/libraries/
+.idea/
 *.iws
 *.iml
 *.ipr
@@ -37,3 +34,29 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Logs ###
+*.log
+logs/
+*.log.*
+
+### Environment Variables ###
+.env
+.env.local
+.env.*.local
+
+### Temporary Files ###
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+.backup
+
+### DynamoDB Local ###
+dynamodb-local/
+DynamoDBLocal.jar
+DynamoDBLocal_lib/
+
+### Spring Boot ###
+spring.log

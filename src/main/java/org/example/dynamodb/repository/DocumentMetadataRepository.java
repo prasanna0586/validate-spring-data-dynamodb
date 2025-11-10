@@ -21,6 +21,6 @@ public interface DocumentMetadataRepository extends CrudRepository<DocumentMetad
     List<DocumentMetadata> findByMemberIdAndCreatedAtBetween(Integer memberId, Instant startDate, Instant endDate);
 
     // Note: The following are implemented in DocumentMetadataRepositoryImpl using custom queries:
-    // - findByMemberIdAndDocumentCategoryIn (uses filter expression on memberId GSI)
-    // - findByMemberIdAndDocumentSubCategoryIn (uses filter expression on memberId GSI)
+    // - findByMemberIdAndDocumentCategoryIn (uses memberId-documentCategory-index GSI with range key condition, parallel queries)
+    // - findByMemberIdAndDocumentSubCategoryIn (uses memberId-documentSubCategory-index GSI with range key condition, parallel queries)
 }
