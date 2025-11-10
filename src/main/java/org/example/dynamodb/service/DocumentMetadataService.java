@@ -1,0 +1,157 @@
+package org.example.dynamodb.service;
+
+import lombok.extern.slf4j.Slf4j;
+import org.example.dynamodb.model.DocumentMetadata;
+import org.example.dynamodb.repository.DocumentMetadataRepository;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
+import org.springframework.stereotype.Service;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@Slf4j
+public class DocumentMetadataService {
+
+    private final DocumentMetadataRepository documentMetadataRepository;
+
+    public DocumentMetadataService(DocumentMetadataRepository documentMetadataRepository) {
+        this.documentMetadataRepository = documentMetadataRepository;
+    }
+
+    /**
+     * Find documents by memberId with pagination support.
+     * The returned Slice contains pagination information for fetching next pages.
+     *
+     * @param memberId the member ID to search for
+     * @param pageable pagination information (page number, size, sort)
+     * @return Slice of DocumentMetadata with pagination info
+     */
+    public Slice<DocumentMetadata> getDocumentsByMemberId(Integer memberId, Pageable pageable) {
+        log.info("Entering getDocumentsByMemberId - memberId: {}, page: {}, size: {}",
+                memberId, pageable.getPageNumber(), pageable.getPageSize());
+
+        Slice<DocumentMetadata> documentSlice = documentMetadataRepository.findByMemberId(memberId, pageable);
+
+        // Check if there are more pages available
+        if (documentSlice.hasNext()) {
+            Pageable nextPageable = documentSlice.nextPageable();
+            log.info("More documents available for memberId: {}. Next page: {}",
+                    memberId, nextPageable.getPageNumber());
+        }
+
+        log.info("Exiting getDocumentsByMemberId - memberId: {}, resultCount: {}, hasNext: {}",
+                memberId, documentSlice.getNumberOfElements(), documentSlice.hasNext());
+
+        return documentSlice;
+    }
+
+    /**
+     * Find documents by memberId within a date range.
+     *
+     * @param memberId the member ID to search for
+     * @param startDate start of the date range
+     * @param endDate end of the date range
+     * @return List of DocumentMetadata within the date range
+     */
+    public List<DocumentMetadata> getDocumentsByMemberIdAndDateRange(Integer memberId, Instant startDate, Instant endDate) {
+        log.info("Entering getDocumentsByMemberIdAndDateRange - memberId: {}, startDate: {}, endDate: {}",
+                memberId, startDate, endDate);
+
+        List<DocumentMetadata> documents = documentMetadataRepository.findByMemberIdAndCreatedAtBetween(memberId, startDate, endDate);
+
+        log.info("Exiting getDocumentsByMemberIdAndDateRange - memberId: {}, resultCount: {}",
+                memberId, documents.size());
+
+        return documents;
+    }
+
+    /**
+     * Find documents by memberId and multiple document categories.
+     * Uses parallel queries for efficiency with custom repository implementation.
+     *
+     * @param memberId the member ID to search for
+     * @param documentCategories list of document categories
+     * @return List of DocumentMetadata matching any of the categories
+     */
+    public List<DocumentMetadata> getDocumentsByMemberIdAndCategoriesIn(Integer memberId, List<Integer> documentCategories) {
+        log.info("Entering getDocumentsByMemberIdAndCategoriesIn - memberId: {}, categories: {}",
+                memberId, documentCategories);
+
+        List<DocumentMetadata> documents = documentMetadataRepository.findByMemberIdAndDocumentCategoryIn(memberId, documentCategories);
+
+        log.info("Exiting getDocumentsByMemberIdAndCategoriesIn - memberId: {}, resultCount: {}",
+                memberId, documents.size());
+
+        return documents;
+    }
+
+    /**
+     * Find documents by memberId and multiple document sub-categories.
+     * Uses parallel queries for efficiency with custom repository implementation.
+     *
+     * @param memberId the member ID to search for
+     * @param documentSubCategories list of document sub-categories
+     * @return List of DocumentMetadata matching any of the sub-categories
+     */
+    public List<DocumentMetadata> getDocumentsByMemberIdAndSubCategoriesIn(Integer memberId, List<Integer> documentSubCategories) {
+        log.info("Entering getDocumentsByMemberIdAndSubCategoriesIn - memberId: {}, subCategories: {}",
+                memberId, documentSubCategories);
+
+        List<DocumentMetadata> documents = documentMetadataRepository.findByMemberIdAndDocumentSubCategoryIn(memberId, documentSubCategories);
+
+        log.info("Exiting getDocumentsByMemberIdAndSubCategoriesIn - memberId: {}, resultCount: {}",
+                memberId, documents.size());
+
+        return documents;
+    }
+
+    /**
+     * Find a document by its unique document ID.
+     *
+     * @param uniqueDocumentId the unique document identifier
+     * @return Optional containing the DocumentMetadata if found
+     */
+    public Optional<DocumentMetadata> getDocumentById(String uniqueDocumentId) {
+        log.info("Entering getDocumentById - uniqueDocumentId: {}", uniqueDocumentId);
+
+        Optional<DocumentMetadata> document = documentMetadataRepository.findByUniqueDocumentId(uniqueDocumentId);
+
+        log.info("Exiting getDocumentById - uniqueDocumentId: {}, found: {}",
+                uniqueDocumentId, document.isPresent());
+
+        return document;
+    }
+
+    /**
+     * Save a document metadata.
+     *
+     * @param documentMetadata the document metadata to save
+     * @return the saved DocumentMetadata
+     */
+    public DocumentMetadata saveDocument(DocumentMetadata documentMetadata) {
+        log.info("Entering saveDocument - uniqueDocumentId: {}, memberId: {}",
+                documentMetadata.getUniqueDocumentId(), documentMetadata.getMemberId());
+
+        DocumentMetadata savedDocument = documentMetadataRepository.save(documentMetadata);
+
+        log.info("Exiting saveDocument - uniqueDocumentId: {}", savedDocument.getUniqueDocumentId());
+
+        return savedDocument;
+    }
+
+    /**
+     * Delete a document by its unique document ID.
+     *
+     * @param uniqueDocumentId the unique document identifier
+     */
+    public void deleteDocument(String uniqueDocumentId) {
+        log.info("Entering deleteDocument - uniqueDocumentId: {}", uniqueDocumentId);
+
+        documentMetadataRepository.deleteById(uniqueDocumentId);
+
+        log.info("Exiting deleteDocument - uniqueDocumentId: {}", uniqueDocumentId);
+    }
+}

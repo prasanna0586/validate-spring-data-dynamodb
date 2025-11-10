@@ -7,6 +7,8 @@ import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Slice;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.GenericContainer;
@@ -145,12 +147,13 @@ class DocumentMetadataRepositoryIntegrationTest {
         repository.save(doc);
 
         // When
-        List<DocumentMetadata> results = repository.findByMemberId(3);
+        Slice<DocumentMetadata> results = repository.findByMemberId(3, PageRequest.of(0, 10));
 
         // Then
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getMemberId()).isEqualTo(3);
-        assertThat(results.get(0).getUniqueDocumentId()).isEqualTo("test3-doc1");
+        assertThat(results.getContent()).hasSize(1);
+        assertThat(results.getContent().get(0).getMemberId()).isEqualTo(3);
+        assertThat(results.getContent().get(0).getUniqueDocumentId()).isEqualTo("test3-doc1");
+        assertThat(results.hasNext()).isFalse();
     }
 
     @Test
@@ -163,11 +166,12 @@ class DocumentMetadataRepositoryIntegrationTest {
         repository.save(createTestDocument("test4-doc3", 4, 103, 203, "user2"));
 
         // When
-        List<DocumentMetadata> results = repository.findByMemberId(4);
+        Slice<DocumentMetadata> results = repository.findByMemberId(4, PageRequest.of(0, 10));
 
         // Then
-        assertThat(results).hasSize(3);
-        assertThat(results).allMatch(doc -> doc.getMemberId().equals(4));
+        assertThat(results.getContent()).hasSize(3);
+        assertThat(results.getContent()).allMatch(doc -> doc.getMemberId().equals(4));
+        assertThat(results.hasNext()).isFalse();
     }
 
     @Test
@@ -175,10 +179,11 @@ class DocumentMetadataRepositoryIntegrationTest {
     @DisplayName("Test 5: Find by memberId - No results")
     void testFindByMemberId_NoResults() {
         // When
-        List<DocumentMetadata> results = repository.findByMemberId(999);
+        Slice<DocumentMetadata> results = repository.findByMemberId(999, PageRequest.of(0, 10));
 
         // Then
-        assertThat(results).isEmpty();
+        assertThat(results.getContent()).isEmpty();
+        assertThat(results.hasNext()).isFalse();
     }
 
     // ==================== GSI: memberId + createdAt (Hash + Range) ====================
@@ -476,11 +481,12 @@ class DocumentMetadataRepositoryIntegrationTest {
         }
 
         // When
-        List<DocumentMetadata> allForMember = repository.findByMemberId(18);
+        Slice<DocumentMetadata> allForMember = repository.findByMemberId(18, PageRequest.of(0, 20));
 
         // Then
-        assertThat(allForMember).hasSize(10);
-        assertThat(allForMember).allMatch(doc -> doc.getMemberId().equals(18));
+        assertThat(allForMember.getContent()).hasSize(10);
+        assertThat(allForMember.getContent()).allMatch(doc -> doc.getMemberId().equals(18));
+        assertThat(allForMember.hasNext()).isFalse();
     }
 
     private DocumentMetadata createTestDocument(String id, Integer memberId, Integer category,
