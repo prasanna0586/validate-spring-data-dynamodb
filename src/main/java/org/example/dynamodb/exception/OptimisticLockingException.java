@@ -1,10 +1,13 @@
 package org.example.dynamodb.exception;
 
+import lombok.Getter;
+
 /**
  * Exception thrown when an optimistic locking conflict occurs during a save operation.
  * This typically happens when two concurrent updates attempt to modify the same document,
  * and the version has changed between read and write operations.
  */
+@Getter
 public class OptimisticLockingException extends RuntimeException {
 
     private final String documentId;
@@ -20,14 +23,6 @@ public class OptimisticLockingException extends RuntimeException {
         super(message, cause);
         this.documentId = documentId;
         this.attemptedVersion = attemptedVersion;
-    }
-
-    public String getDocumentId() {
-        return documentId;
-    }
-
-    public Long getAttemptedVersion() {
-        return attemptedVersion;
     }
 
     @Override
