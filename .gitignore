@@ -60,3 +60,4 @@ DynamoDBLocal_lib/
 
 ### Spring Boot ###
 spring.log
+/.idea/

@@ -7,6 +7,7 @@ import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
 import org.springframework.test.context.DynamicPropertyRegistry;
@@ -489,6 +490,146 @@ class DocumentMetadataRepositoryIntegrationTest {
         assertThat(allForMember.getContent()).hasSize(10);
         assertThat(allForMember.getContent()).allMatch(doc -> doc.getMemberId().equals(18));
         assertThat(allForMember.hasNext()).isFalse();
+    }
+
+// ==================== NEW QUERY SCENARIOS (ALREADY IMPLEMENTED) ====================
+
+    @Test
+    @Order(19)
+    @DisplayName("Test 19: Find by memberId and createdBy using @Query with attribute mapping")
+    void testFindByMemberIdAndCreatedBy() {
+        DocumentMetadata doc1 = createTestDocument("test19-doc1", 19, 101, 201, "user-alpha");
+        repository.save(doc1);
+        DocumentMetadata doc2 = createTestDocument("test19-doc2", 19, 102, 202, "user-beta");
+        repository.save(doc2);
+        List<DocumentMetadata> results = repository.findByMemberIdAndCreatedBy(19, "user-alpha");
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getUniqueDocumentId()).isEqualTo("test19-doc1");
+        assertThat(results.getFirst().getCreatedBy()).isEqualTo("user-alpha");
+    }
+
+    @Test
+    @Order(20)
+    @DisplayName("Test 20: Find by memberId, createdAt range, and notes containing (case-sensitive)")
+    void testFindByMemberIdAndCreatedAtBetweenAndNotesContaining() {
+        Instant now = Instant.now();
+        DocumentMetadata doc = createTestDocument("test20-doc1", 20, 101, 201, "user-gamma");
+        doc.setCreatedAt(now);
+        doc.setNotes("URGENT: Medical report");
+        repository.save(doc);
+        List<DocumentMetadata> results = repository.findByMemberIdAndCreatedAtBetweenAndNotesContaining(
+                20,
+                now.minusSeconds(3600),
+                now.plusSeconds(3600),
+                "URGENT"
+        );
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getNotes()).contains("URGENT");
+    }
+
+    @Test
+    @Order(21)
+    @DisplayName("Test 21: Find by documentCategory and notes containing (full table scan)")
+    void testFindByDocumentCategoryAndNotesContaining() {
+        DocumentMetadata doc1 = createTestDocument("test21-doc1", 100, 50, 501, "user-eta");
+        doc1.setNotes("CONFIDENTIAL: Legal document");
+        repository.save(doc1);
+        DocumentMetadata doc2 = createTestDocument("test21-doc2", 101, 50, 502, "user-theta");
+        doc2.setNotes("Public record");
+        repository.save(doc2);
+        List<DocumentMetadata> results = repository.findByDocumentCategoryAndNotesContaining(50, "CONFIDENTIAL");
+        assertThat(results)
+                .hasSize(1)
+                .first()
+                .satisfies(doc -> {
+                    assertThat(doc.getDocumentCategory()).isEqualTo(50);
+                    assertThat(doc.getNotes()).contains("CONFIDENTIAL");
+                });
+    }
+
+    @Test
+    @Order(22)
+    @DisplayName("Test 22: Find by memberId, documentCategory, and documentSubCategory")
+    void testFindByMemberIdAndDocumentCategoryAndDocumentSubCategory() {
+        DocumentMetadata doc = createTestDocument("test22-doc1", 22, 40, 401, "user-delta");
+        repository.save(doc);
+        List<DocumentMetadata> results = repository.findByMemberIdAndDocumentCategoryAndDocumentSubCategory(
+                22, 40, 401
+        );
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getUniqueDocumentId()).isEqualTo("test22-doc1");
+        assertThat(results.getFirst().getDocumentSubCategory()).isEqualTo(401);
+    }
+
+    @Test
+    @Order(23)
+    @DisplayName("Test 23: Find by memberId, createdBy, and min updatedAt")
+    void testFindByMemberIdAndCreatedByAndUpdatedAtAfter() {
+        Instant now = Instant.now();
+        DocumentMetadata doc1 = createTestDocument("test23-doc1", 23, 101, 201, "user-epsilon");
+        doc1.setUpdatedAt(now);
+        repository.save(doc1);
+        DocumentMetadata doc2 = createTestDocument("test23-doc2", 23, 102, 202, "user-epsilon");
+        doc2.setUpdatedAt(now.minus(10, ChronoUnit.MINUTES));
+        repository.save(doc2);
+        List<DocumentMetadata> results = repository.findByMemberIdAndCreatedByAndUpdatedAtAfter(
+                23,
+                "user-epsilon",
+                now.minus(5, ChronoUnit.MINUTES)
+        );
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getUniqueDocumentId()).isEqualTo("test23-doc1");
+        assertThat(results.getFirst().getUpdatedAt()).isAfter(now.minus(5, ChronoUnit.MINUTES));
+    }
+
+    @Test
+    @Order(24)
+    @DisplayName("Test 24: Find by memberId, documentSubCategory IN, and min updatedAt (custom parallel query)")
+    void testFindByMemberIdAndDocumentSubCategoryInWithUpdatedAtAfter() {
+        Instant now = Instant.now();
+        DocumentMetadata doc1 = createTestDocument("test24-doc1", 24, 30, 301, "user-zeta");
+        doc1.setUpdatedAt(now);
+        repository.save(doc1);
+        DocumentMetadata doc2 = createTestDocument("test24-doc2", 24, 30, 302, "user-zeta");
+        doc2.setUpdatedAt(now.minus(10, ChronoUnit.MINUTES));
+        repository.save(doc2);
+        List<DocumentMetadata> results = repository.findByMemberIdAndDocumentSubCategoryInWithUpdatedAtAfter(
+                24,
+                List.of(301, 302),
+                now.minus(5, ChronoUnit.MINUTES)
+        );
+        assertThat(results).hasSize(1);
+        assertThat(results.getFirst().getDocumentSubCategory()).isEqualTo(301);
+    }
+
+    @Test
+    @Order(25)
+    @DisplayName("Test 25: Find unique document by version")
+    void testFindUniqueDocumentByVersion() {
+        DocumentMetadata doc = createTestDocument("test25-doc1", 25, 99, 999, "user-omega");
+        repository.save(doc);
+        Optional<DocumentMetadata> found = repository.findUniqueDocumentByVersion("test25-doc1", 1L);
+        assertThat(found).isPresent();
+        assertThat(found.get().getVersion()).isEqualTo(1L);
+        assertThat(found.get().getUniqueDocumentId()).isEqualTo("test25-doc1");
+    }
+
+    @Test
+    @Order(26)
+    @DisplayName("Test 26: Paginated find by memberId and updatedBy")
+    void testFindByMemberIdAndUpdatedBy_Paginated() {
+        for (int i = 1; i <= 5; i++) {
+            DocumentMetadata doc = createTestDocument("test26-doc" + i, 26, 100, 200, "user-updater");
+            doc.setUpdatedBy("system-bot");
+            repository.save(doc);
+        }
+        Page<DocumentMetadata> page1 = repository.findByMemberIdAndUpdatedBy(
+                26, "system-bot", PageRequest.of(0, 2)
+        );
+        assertThat(page1.getContent()).hasSize(2);
+        assertThat(page1.getTotalElements()).isEqualTo(5);
+        assertThat(page1.getNumber()).isEqualTo(0);
+        assertThat(page1.getTotalPages()).isEqualTo(3);
     }
 
     private DocumentMetadata createTestDocument(String id, Integer memberId, Integer category,
