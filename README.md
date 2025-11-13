@@ -21,27 +21,35 @@ This project demonstrates advanced querying patterns with **Amazon DynamoDB** us
 | `findByUniqueDocumentId(id)` | Primary key lookup |
 | `findByMemberId(memberId, pageable)` | GSI query (hash key only) |
 | `findByMemberIdAndCreatedAtBetween(...)` | GSI range query |
+| `findByMemberIdAndCreatedAtBetweenAndNotesContaining(...)` | GSI range query + non-key filter |
 | `findByMemberIdAndDocumentCategoryIn(...)` | Parallel GSI queries (one per category) |
 | `findByMemberIdAndDocumentSubCategoryIn(...)` | Parallel GSI queries (one per sub-category) |
 | `findByMemberIdAndDocumentCategoryAndDocumentSubCategory(...)` | GSI query + non-key filter |
-| `findByMemberIdAndCreatedBy(...)` | GSI query + non-key filter |
 | `findByMemberIdAndCreatedByAndUpdatedAtAfter(...)` | GSI query + multiple non-key filters |
 | `findByMemberIdAndUpdatedBy(...)` | GSI query + filter with pagination |
 
-### ⚠️ Less Efficient (Full Table Scan)
-| Method | Description |
-|-------|------------|
-| `findByDocumentCategoryAndNotesContaining(...)` | Full table scan with filter expression |
+### ⚠️ Less Efficient (Full Table Scan - Requires @EnableScan)
+| Method | Why Scan is Required |
+|-------|---------------------|
+| `findByMemberIdAndCreatedBy(...)` | No GSI exists with `createdBy` as range key. Available GSIs with `memberId` hash key only have `documentCategory`, `documentSubCategory`, or `createdAt` as range keys. Falls back to scan operation. |
+| `findByDocumentCategoryAndNotesContaining(...)` | No GSI exists with `documentCategory` as hash key (it's only a range key in `memberId-documentCategory-index`). Uses explicit `DynamoDBScanExpression`. |
 
-> ⚠️ **Important**: This method uses **`DynamoDBScanExpression`** and requires `@EnableScan` on the repository.  
-> Scans read **every item in the table**, so they are **expensive and slow** on large datasets.  
+> ⚠️ **Important**: These methods require `@EnableScan` annotation on the repository interface.
+>
+> **Why scans are needed:**
+> - **`findByMemberIdAndCreatedBy`**: `createdBy` is a regular attribute (not indexed). Spring Data cannot perform a Query on `memberId` alone with a filter on `createdBy`, so it falls back to a table scan.
+> - **`findByDocumentCategoryAndNotesContaining`**: No GSI has `documentCategory` as the hash key, requiring a full table scan to filter by category and notes content.
+>
+> Scans read **every item in the table**, making them **expensive and slow** on large datasets.
 > **Avoid in production** unless the table is small or used for administrative/debugging purposes.
 
 ## ⚙️ Configuration
 
 ### Repository Annotation
 - `@EnableScan` is explicitly enabled on `DocumentMetadataRepository` to allow scan operations.
-- Used **only** for the `findByDocumentCategoryAndNotesContaining` method.
+- Required for **2 methods**:
+  - `findByMemberIdAndCreatedBy` (no GSI for memberId+createdBy combination)
+  - `findByDocumentCategoryAndNotesContaining` (no GSI with documentCategory as hash key)
 
 ### Profiles
 - `local`: Connects to local DynamoDB (`http://localhost:8000`)
