@@ -1,8 +1,5 @@
 package org.example.dynamodb.repository;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapper;
-import com.amazonaws.services.dynamodbv2.model.*;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +13,17 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.EnhancedGlobalSecondaryIndex;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
+import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
 
+import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -37,32 +44,29 @@ class DocumentMetadataRepositoryIntegrationTest {
             .withExposedPorts(8000)
             .withCommand("-jar DynamoDBLocal.jar -inMemory -sharedDb");
 
+    private static final String TABLE_NAME = "DocumentMetadata";
+
     @DynamicPropertySource
     static void dynamoDbProperties(DynamicPropertyRegistry registry) {
-        registry.add("aws.dynamodb.endpoint",
-                () -> "http://" + dynamoDbContainer.getHost() + ":" + dynamoDbContainer.getMappedPort(8000));
+        String endpoint = "http://" + dynamoDbContainer.getHost() + ":" + dynamoDbContainer.getMappedPort(8000);
+        registry.add("aws.dynamodb.endpoint", () -> endpoint);
         registry.add("aws.dynamodb.region", () -> "us-east-1");
         registry.add("aws.dynamodb.accessKey", () -> "dummy");
         registry.add("aws.dynamodb.secretKey", () -> "dummy");
-        registry.add("app.environment.prefix", () -> "test");
+        // Use empty prefix so table name is just "DocumentMetadata"
+        registry.add("app.environment.prefix", () -> "");
+
+        // Create table BEFORE Spring context loads
+        createTable(endpoint);
     }
 
     @Autowired
     private DocumentMetadataRepository repository;
 
     @Autowired
-    private AmazonDynamoDB amazonDynamoDB;
+    private DynamoDbClient dynamoDbClient;
 
-    private static boolean tableCreated = false;
     private List<String> testDocumentIds = new ArrayList<>();
-
-    @BeforeEach
-    void setUp() {
-        if (!tableCreated) {
-            createTableIfNotExists();
-            tableCreated = true;
-        }
-    }
 
     @AfterEach
     void tearDown() {
@@ -77,32 +81,52 @@ class DocumentMetadataRepositoryIntegrationTest {
         testDocumentIds.clear();
     }
 
-    private void createTableIfNotExists() {
+    private static void createTable(String endpoint) {
+        DynamoDbClient client = DynamoDbClient.builder()
+                .endpointOverride(URI.create(endpoint))
+                .region(Region.US_EAST_1)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("dummy", "dummy")))
+                .build();
+
+        DynamoDbEnhancedClient enhancedClient = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(client)
+                .build();
+
+        TableSchema<DocumentMetadata> tableSchema = TableSchema.fromBean(DocumentMetadata.class);
+
+        ProvisionedThroughput throughput = ProvisionedThroughput.builder()
+                .readCapacityUnits(5L)
+                .writeCapacityUnits(5L)
+                .build();
+
+        enhancedClient.table(TABLE_NAME, tableSchema).createTable(builder -> builder
+                .provisionedThroughput(throughput)
+                .globalSecondaryIndices(
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-createdAt-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build(),
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-documentCategory-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build(),
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-documentSubCategory-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build()
+                ));
+
         try {
-            amazonDynamoDB.describeTable("test-DocumentMetadata");
-        } catch (ResourceNotFoundException e) {
-            CreateTableRequest createTableRequest = new DynamoDBMapper(amazonDynamoDB)
-                    .generateCreateTableRequest(DocumentMetadata.class);
-            createTableRequest.setTableName("test-DocumentMetadata");
-
-            createTableRequest.setProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
-
-            if (createTableRequest.getGlobalSecondaryIndexes() != null) {
-                for (GlobalSecondaryIndex gsi : createTableRequest.getGlobalSecondaryIndexes()) {
-                    gsi.setProvisionedThroughput(new ProvisionedThroughput(5L, 5L));
-                    // Set projection type to ALL so all attributes are available in GSI
-                    gsi.setProjection(new Projection().withProjectionType(ProjectionType.ALL));
-                }
-            }
-
-            amazonDynamoDB.createTable(createTableRequest);
-
-            try {
-                Thread.sleep(2000);
-            } catch (InterruptedException ex) {
-                Thread.currentThread().interrupt();
-            }
+            Thread.sleep(2000);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
         }
+
+        client.close();
     }
 
     // ==================== PRIMARY KEY QUERIES ====================
@@ -432,14 +456,14 @@ class DocumentMetadataRepositoryIntegrationTest {
     void testUpdateDocument_MultipleFields() {
         // Given
         DocumentMetadata doc = createTestDocument("test16-doc1", 16, 101, 201, "user1");
-        repository.save(doc);
+        DocumentMetadata savedDoc = repository.save(doc);
 
-        // When
-        doc.setNotes("Updated notes for test");
-        doc.setUpdatedAt(Instant.now().plus(1, ChronoUnit.HOURS));
-        doc.setUpdatedBy("user2");
-        doc.setDocumentSubCategory(202);
-        repository.save(doc);
+        // When - use the returned doc which has the updated version
+        savedDoc.setNotes("Updated notes for test");
+        savedDoc.setUpdatedAt(Instant.now().plus(1, ChronoUnit.HOURS));
+        savedDoc.setUpdatedBy("user2");
+        savedDoc.setDocumentSubCategory(202);
+        repository.save(savedDoc);
 
         Optional<DocumentMetadata> updated = repository.findByUniqueDocumentId("test16-doc1");
 

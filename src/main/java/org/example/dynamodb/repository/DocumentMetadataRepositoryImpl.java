@@ -1,20 +1,23 @@
 package org.example.dynamodb.repository;
 
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBQueryExpression;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBScanExpression;
-import com.amazonaws.services.dynamodbv2.datamodeling.PaginatedQueryList;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.ComparisonOperator;
-import com.amazonaws.services.dynamodbv2.model.Condition;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.socialsignin.spring.data.dynamodb.core.DynamoDBOperations;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import software.amazon.awssdk.enhanced.dynamodb.Expression;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryConditional;
+import software.amazon.awssdk.enhanced.dynamodb.model.QueryEnhancedRequest;
+import software.amazon.awssdk.enhanced.dynamodb.model.ScanEnhancedRequest;
+import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
+import software.amazon.awssdk.services.dynamodb.model.QueryRequest;
 
 import java.time.Instant;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 // Note: This class does NOT need @Repository annotation
@@ -22,6 +25,10 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 @SuppressWarnings("unused") // Class is used by Spring Data at runtime via naming convention
 public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositoryCustom {
+
+    private static final String MEMBER_ID_CATEGORY_INDEX = "memberId-documentCategory-index";
+    private static final String MEMBER_ID_SUBCATEGORY_INDEX = "memberId-documentSubCategory-index";
+    private static final String MEMBER_ID_CREATED_AT_INDEX = "memberId-createdAt-index";
 
     private final DynamoDBOperations dynamoDBOperations;
 
@@ -34,28 +41,33 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByMemberIdAndDocumentCategoryIn - memberId: {}, documentCategories: {}",
                 memberId, documentCategories);
 
+        if (documentCategories == null || documentCategories.isEmpty()) {
+            return List.of();
+        }
+
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
+
         List<CompletableFuture<List<DocumentMetadata>>> futures = documentCategories.stream()
             .map(category ->
+                CompletableFuture.supplyAsync(() -> {
+                    Map<String, AttributeValue> expressionValues = new HashMap<>();
+                    expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+                    expressionValues.put(":category", AttributeValue.builder().n(category.toString()).build());
 
-                CompletableFuture.<List<DocumentMetadata>>supplyAsync(() -> {
+                    QueryRequest queryRequest = QueryRequest.builder()
+                        .tableName(tableName)
+                        .indexName(MEMBER_ID_CATEGORY_INDEX)
+                        .keyConditionExpression("memberId = :memberId AND documentCategory = :category")
+                        .expressionAttributeValues(expressionValues)
+                        .build();
 
-                DocumentMetadata gsiKey = new DocumentMetadata();
-                gsiKey.setMemberId(memberId);
+                    return dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                        .items()
+                        .stream()
+                        .toList();
+                }))
+            .toList();
 
-                DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                    .withIndexName("memberId-documentCategory-index")
-                    .withConsistentRead(false)
-                    .withHashKeyValues(gsiKey) // <-- Pass the object with memberId as hash key
-                    .withRangeKeyCondition("documentCategory", new Condition()
-                        .withComparisonOperator(ComparisonOperator.EQ)
-                        .withAttributeValueList(new AttributeValue().withN(category.toString())));
-
-                PaginatedQueryList<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query);
-                return new ArrayList<>(results);
-
-            })).toList();
-
-        // Wait for all queries to complete and flatten the results
         List<DocumentMetadata> result = futures.stream()
                 .map(CompletableFuture::join)
                 .flatMap(List::stream)
@@ -71,28 +83,33 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByMemberIdAndDocumentSubCategoryIn - memberId: {}, documentSubCategories: {}",
                 memberId, documentSubCategories);
 
+        if (documentSubCategories == null || documentSubCategories.isEmpty()) {
+            return List.of();
+        }
+
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
+
         List<CompletableFuture<List<DocumentMetadata>>> futures = documentSubCategories.stream()
             .map(subCategory ->
+                CompletableFuture.supplyAsync(() -> {
+                    Map<String, AttributeValue> expressionValues = new HashMap<>();
+                    expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+                    expressionValues.put(":subCategory", AttributeValue.builder().n(subCategory.toString()).build());
 
-                CompletableFuture.<List<DocumentMetadata>>supplyAsync(() -> {
+                    QueryRequest queryRequest = QueryRequest.builder()
+                        .tableName(tableName)
+                        .indexName(MEMBER_ID_SUBCATEGORY_INDEX)
+                        .keyConditionExpression("memberId = :memberId AND documentSubCategory = :subCategory")
+                        .expressionAttributeValues(expressionValues)
+                        .build();
 
-                DocumentMetadata gsiKey = new DocumentMetadata();
-                gsiKey.setMemberId(memberId);
+                    return dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                        .items()
+                        .stream()
+                        .toList();
+                }))
+            .toList();
 
-                DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                    .withIndexName("memberId-documentSubCategory-index")
-                    .withConsistentRead(false)
-                    .withHashKeyValues(gsiKey) // <-- Pass the object with memberId as hash key
-                    .withRangeKeyCondition("documentSubCategory", new Condition()
-                        .withComparisonOperator(ComparisonOperator.EQ)
-                        .withAttributeValueList(new AttributeValue().withN(subCategory.toString())));
-
-                PaginatedQueryList<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query);
-                return new ArrayList<>(results);
-
-            })).toList();
-
-        // Wait for all queries to complete and flatten the results
         List<DocumentMetadata> result = futures.stream()
                 .map(CompletableFuture::join)
                 .flatMap(List::stream)
@@ -112,27 +129,31 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByMemberIdAndDocumentSubCategoryInWithUpdatedAtAfter - memberId: {}, subCategories: {}, minUpdatedAt: {}",
                 memberId, documentSubCategories, minUpdatedAt);
 
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":minUpdatedAt", new AttributeValue().withS(minUpdatedAt.toString()));
+        if (documentSubCategories == null || documentSubCategories.isEmpty()) {
+            return List.of();
+        }
 
-        List<CompletableFuture<ArrayList<DocumentMetadata>>> futures = documentSubCategories.stream()
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
+
+        List<CompletableFuture<List<DocumentMetadata>>> futures = documentSubCategories.stream()
                 .map(subCategory -> CompletableFuture.supplyAsync(() -> {
+                    Map<String, AttributeValue> expressionValues = new HashMap<>();
+                    expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+                    expressionValues.put(":subCategory", AttributeValue.builder().n(subCategory.toString()).build());
+                    expressionValues.put(":minUpdatedAt", AttributeValue.builder().s(minUpdatedAt.toString()).build());
 
-                    DocumentMetadata gsiKey = new DocumentMetadata();
-                    gsiKey.setMemberId(memberId);
+                    QueryRequest queryRequest = QueryRequest.builder()
+                            .tableName(tableName)
+                            .indexName(MEMBER_ID_SUBCATEGORY_INDEX)
+                            .keyConditionExpression("memberId = :memberId AND documentSubCategory = :subCategory")
+                            .filterExpression("updatedAt > :minUpdatedAt")
+                            .expressionAttributeValues(expressionValues)
+                            .build();
 
-                    DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                            .withIndexName("memberId-documentSubCategory-index")
-                            .withConsistentRead(false)
-                            .withHashKeyValues(gsiKey)
-                            .withRangeKeyCondition("documentSubCategory",
-                                    new Condition()
-                                            .withComparisonOperator(ComparisonOperator.EQ)
-                                            .withAttributeValueList(new AttributeValue().withN(subCategory.toString())))
-                            .withFilterExpression("updatedAt > :minUpdatedAt")
-                            .withExpressionAttributeValues(expressionValues);
-
-                    return new ArrayList<>(dynamoDBOperations.query(DocumentMetadata.class, query));
+                    return dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                            .items()
+                            .stream()
+                            .toList();
                 }))
                 .toList();
 
@@ -144,19 +165,22 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
 
     @Override
     public Optional<DocumentMetadata> findUniqueDocumentByVersion(String uniqueDocumentId, Long version) {
-        DocumentMetadata key = new DocumentMetadata();
-        key.setUniqueDocumentId(uniqueDocumentId);
+        Expression filterExpression = Expression.builder()
+                .expression("#v = :expectedVersion")
+                .putExpressionName("#v", "version")
+                .putExpressionValue(":expectedVersion", AttributeValue.builder().n(version.toString()).build())
+                .build();
 
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":expectedVersion", new AttributeValue().withN(version.toString()));
+        QueryEnhancedRequest query = QueryEnhancedRequest.builder()
+                .queryConditional(QueryConditional.keyEqualTo(k -> k.partitionValue(uniqueDocumentId)))
+                .filterExpression(filterExpression)
+                .build();
 
-        DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                .withHashKeyValues(key)
-                .withFilterExpression("version = :expectedVersion")
-                .withExpressionAttributeValues(expressionValues)
-                .withConsistentRead(true); // para garantir consistência
+        List<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query)
+                .items()
+                .stream()
+                .toList();
 
-        List<DocumentMetadata> results = new ArrayList<>(dynamoDBOperations.query(DocumentMetadata.class, query));
         return results.isEmpty() ? Optional.empty() : Optional.of(results.getFirst());
     }
 
@@ -166,28 +190,33 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
             String updatedBy,
             Pageable pageable) {
 
-        DocumentMetadata gsiKey = new DocumentMetadata();
-        gsiKey.setMemberId(memberId);
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
 
         Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":updatedBy", new AttributeValue().withS(updatedBy));
+        expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+        expressionValues.put(":updatedBy", AttributeValue.builder().s(updatedBy).build());
 
-        DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                .withIndexName("memberId-createdAt-index")
-                .withConsistentRead(false)
-                .withHashKeyValues(gsiKey)
-                .withFilterExpression("updatedBy = :updatedBy")
-                .withExpressionAttributeValues(expressionValues)
-                .withLimit(pageable.getPageSize());
+        QueryRequest queryRequest = QueryRequest.builder()
+                .tableName(tableName)
+                .indexName(MEMBER_ID_CREATED_AT_INDEX)
+                .keyConditionExpression("memberId = :memberId")
+                .filterExpression("updatedBy = :updatedBy")
+                .expressionAttributeValues(expressionValues)
+                .build();
 
-        PaginatedQueryList<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, query);
-        List<DocumentMetadata> content = results.subList(
-                (int) pageable.getOffset(),
-                Math.min((int) (pageable.getOffset() + pageable.getPageSize()), results.size())
-        );
+        List<DocumentMetadata> results = dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                .items()
+                .stream()
+                .toList();
+
+        int start = (int) pageable.getOffset();
+        int end = Math.min(start + pageable.getPageSize(), results.size());
+
+        List<DocumentMetadata> content = start < results.size() ? results.subList(start, end) : List.of();
 
         return new PageImpl<>(content, pageable, results.size());
     }
+
     @Override
     public List<DocumentMetadata> findByDocumentCategoryAndNotesContaining(
             Integer documentCategory,
@@ -196,19 +225,22 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByDocumentCategoryAndNotesContaining - category: {}, keyword: '{}'",
                 documentCategory, notesKeyword);
 
-        Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":category", new AttributeValue().withN(documentCategory.toString()));
-        expressionValues.put(":keyword", new AttributeValue().withS(notesKeyword));
+        Expression filterExpression = Expression.builder()
+                .expression("#docCat = :category AND contains(#notes, :keyword)")
+                .putExpressionName("#docCat", "documentCategory")
+                .putExpressionName("#notes", "notes")
+                .putExpressionValue(":category", AttributeValue.builder().n(documentCategory.toString()).build())
+                .putExpressionValue(":keyword", AttributeValue.builder().s(notesKeyword).build())
+                .build();
 
-        DynamoDBScanExpression scan = new DynamoDBScanExpression()
-                .withFilterExpression("#docCat = :category AND contains(#notes, :keyword)")
-                .withExpressionAttributeNames(Map.of(
-                        "#docCat", "documentCategory",
-                        "#notes", "notes"
-                ))
-                .withExpressionAttributeValues(expressionValues);
+        ScanEnhancedRequest scan = ScanEnhancedRequest.builder()
+                .filterExpression(filterExpression)
+                .build();
 
-        return new ArrayList<>(dynamoDBOperations.scan(DocumentMetadata.class, scan));
+        return dynamoDBOperations.scan(DocumentMetadata.class, scan)
+                .items()
+                .stream()
+                .toList();
     }
 
     @Override
@@ -220,25 +252,25 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByMemberIdAndDocumentCategoryAndDocumentSubCategory - memberId: {}, category: {}, subCategory: {}",
                 memberId, documentCategory, documentSubCategory);
 
-        DocumentMetadata gsiKey = new DocumentMetadata();
-        gsiKey.setMemberId(memberId);
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
 
         Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":subCategory", new AttributeValue().withN(documentSubCategory.toString()));
+        expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+        expressionValues.put(":category", AttributeValue.builder().n(documentCategory.toString()).build());
+        expressionValues.put(":subCategory", AttributeValue.builder().n(documentSubCategory.toString()).build());
 
-        DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                .withIndexName("memberId-documentCategory-index")
-                .withConsistentRead(false)
-                .withHashKeyValues(gsiKey)
-                .withRangeKeyCondition("documentCategory",
-                        new Condition()
-                                .withComparisonOperator(ComparisonOperator.EQ)
-                                .withAttributeValueList(new AttributeValue().withN(documentCategory.toString())))
-                .withFilterExpression("#docSubCat = :subCategory")
-                .withExpressionAttributeNames(Map.of("#docSubCat", "documentSubCategory"))
-                .withExpressionAttributeValues(expressionValues);
+        QueryRequest queryRequest = QueryRequest.builder()
+                .tableName(tableName)
+                .indexName(MEMBER_ID_CATEGORY_INDEX)
+                .keyConditionExpression("memberId = :memberId AND documentCategory = :category")
+                .filterExpression("documentSubCategory = :subCategory")
+                .expressionAttributeValues(expressionValues)
+                .build();
 
-        return new ArrayList<>(dynamoDBOperations.query(DocumentMetadata.class, query));
+        return dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                .items()
+                .stream()
+                .toList();
     }
 
     @Override
@@ -250,24 +282,29 @@ public class DocumentMetadataRepositoryImpl implements DocumentMetadataRepositor
         log.info("Entering findByMemberIdAndCreatedByAndUpdatedAtAfter - memberId: {}, createdBy: {}, minUpdatedAt: {}",
                 memberId, createdBy, minUpdatedAt);
 
-        DocumentMetadata gsiKey = new DocumentMetadata();
-        gsiKey.setMemberId(memberId);
+        String tableName = dynamoDBOperations.getOverriddenTableName(DocumentMetadata.class, "DocumentMetadata");
 
         Map<String, AttributeValue> expressionValues = new HashMap<>();
-        expressionValues.put(":createdBy", new AttributeValue().withS(createdBy));
-        expressionValues.put(":minUpdatedAt", new AttributeValue().withS(minUpdatedAt.toString()));
+        expressionValues.put(":memberId", AttributeValue.builder().n(memberId.toString()).build());
+        expressionValues.put(":createdBy", AttributeValue.builder().s(createdBy).build());
+        expressionValues.put(":minUpdatedAt", AttributeValue.builder().s(minUpdatedAt.toString()).build());
 
-        DynamoDBQueryExpression<DocumentMetadata> query = new DynamoDBQueryExpression<DocumentMetadata>()
-                .withIndexName("memberId-createdAt-index")
-                .withConsistentRead(false)
-                .withHashKeyValues(gsiKey)
-                .withFilterExpression("#createdBy = :createdBy AND #updatedAt > :minUpdatedAt")
-                .withExpressionAttributeNames(Map.of(
-                        "#createdBy", "createdBy",
-                        "#updatedAt", "updatedAt"
-                ))
-                .withExpressionAttributeValues(expressionValues);
+        Map<String, String> expressionNames = new HashMap<>();
+        expressionNames.put("#createdBy", "createdBy");
+        expressionNames.put("#updatedAt", "updatedAt");
 
-        return new ArrayList<>(dynamoDBOperations.query(DocumentMetadata.class, query));
+        QueryRequest queryRequest = QueryRequest.builder()
+                .tableName(tableName)
+                .indexName(MEMBER_ID_CREATED_AT_INDEX)
+                .keyConditionExpression("memberId = :memberId")
+                .filterExpression("#createdBy = :createdBy AND #updatedAt > :minUpdatedAt")
+                .expressionAttributeValues(expressionValues)
+                .expressionAttributeNames(expressionNames)
+                .build();
+
+        return dynamoDBOperations.query(DocumentMetadata.class, queryRequest)
+                .items()
+                .stream()
+                .toList();
     }
 }

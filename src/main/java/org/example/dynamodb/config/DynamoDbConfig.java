@@ -1,20 +1,20 @@
 package org.example.dynamodb.config;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.datamodeling.DynamoDBMapperConfig;
+import org.socialsignin.spring.data.dynamodb.core.TableNameResolver;
 import org.socialsignin.spring.data.dynamodb.repository.config.EnableDynamoDBRepositories;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+
+import java.net.URI;
 
 @Configuration
 @EnableDynamoDBRepositories(
-        basePackages = "org.example.dynamodb.repository",
-        dynamoDBMapperConfigRef = "dynamoDBMapperConfig"
+        basePackages = "org.example.dynamodb.repository"
 )
 public class DynamoDbConfig {
 
@@ -34,31 +34,25 @@ public class DynamoDbConfig {
     private String environmentPrefix;
 
     @Bean
-    public AmazonDynamoDB amazonDynamoDB() {
-        return AmazonDynamoDBClientBuilder
-                .standard()
-                .withEndpointConfiguration(
-                        new AwsClientBuilder.EndpointConfiguration(dynamoDbEndpoint, awsRegion))
-                .withCredentials(new AWSStaticCredentialsProvider(
-                        new BasicAWSCredentials(awsAccessKey, awsSecretKey)))
+    public DynamoDbClient amazonDynamoDB() {
+        return DynamoDbClient.builder()
+                .endpointOverride(URI.create(dynamoDbEndpoint))
+                .region(Region.of(awsRegion))
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create(awsAccessKey, awsSecretKey)))
                 .build();
     }
 
-    /**
-     * Configures DynamoDB mapper with table name prefix based on environment.
-     * This allows using the same code across multiple environments (dev, staging, prod)
-     * with different table names (e.g., dev-DocumentMetadata, prod-DocumentMetadata).
-     *
-     * @return DynamoDBMapperConfig with environment-specific table name prefix
-     */
     @Bean
-    public DynamoDBMapperConfig dynamoDBMapperConfig() {
-        // Create a TableNameOverride with our prefix
-        DynamoDBMapperConfig.TableNameOverride override =
-                DynamoDBMapperConfig.TableNameOverride.withTableNamePrefix(environmentPrefix + "-");
-
-        return new DynamoDBMapperConfig.Builder()
-                .withTableNameOverride(override)
-                .build();
+    public TableNameResolver tableNameResolver() {
+        return new TableNameResolver() {
+            @Override
+            public <T> String resolveTableName(Class<T> domainClass, String baseTableName) {
+                if (environmentPrefix == null || environmentPrefix.isEmpty()) {
+                    return baseTableName;
+                }
+                return environmentPrefix + "_" + baseTableName;
+            }
+        };
     }
 }

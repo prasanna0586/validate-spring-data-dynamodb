@@ -1,52 +1,138 @@
 package org.example.dynamodb.model;
 
-import com.amazonaws.services.dynamodbv2.datamodeling.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
-import org.example.dynamodb.converter.InstantConverter;
+import software.amazon.awssdk.enhanced.dynamodb.extensions.annotations.DynamoDbVersionAttribute;
+import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.*;
 
 import java.time.Instant;
 
-@Data
-@NoArgsConstructor
-@AllArgsConstructor
-@DynamoDBTable(tableName = "DocumentMetadata")
+@DynamoDbBean
 public class DocumentMetadata {
 
-    @DynamoDBHashKey(attributeName = "uniqueDocumentId")
     private String uniqueDocumentId;
 
-    @DynamoDBIndexHashKey(globalSecondaryIndexNames = {
+
+    private Integer memberId;
+
+
+    private Integer documentCategory;
+
+
+    private Integer documentSubCategory;
+
+
+    private Instant createdAt;
+
+
+    private Instant updatedAt;
+
+
+    private String createdBy;
+
+
+    private String updatedBy;
+
+
+    private String notes;
+
+    private Long version;
+
+    @DynamoDbPartitionKey
+    @DynamoDbAttribute("uniqueDocumentId")
+    public String getUniqueDocumentId() {
+        return uniqueDocumentId;
+    }
+
+    public void setUniqueDocumentId(String uniqueDocumentId) {
+        this.uniqueDocumentId = uniqueDocumentId;
+    }
+
+    @DynamoDbSecondaryPartitionKey(indexNames = {
             "memberId-documentCategory-index",
             "memberId-documentSubCategory-index",
             "memberId-createdAt-index"
-    }, attributeName = "memberId")
-    private Integer memberId;
+    })
+    @DynamoDbAttribute("memberId")
+    public Integer getMemberId() {
+        return memberId;
+    }
 
-    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-documentCategory-index", attributeName = "documentCategory")
-    private Integer documentCategory;
+    public void setMemberId(Integer memberId) {
+        this.memberId = memberId;
+    }
 
-    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-documentSubCategory-index", attributeName = "documentSubCategory")
-    private Integer documentSubCategory;
+    @DynamoDbSecondarySortKey(indexNames = "memberId-documentCategory-index")
+    @DynamoDbAttribute("documentCategory")
+    public Integer getDocumentCategory() {
+        return documentCategory;
+    }
 
-    @DynamoDBIndexRangeKey(globalSecondaryIndexName = "memberId-createdAt-index", attributeName = "createdAt")
-    @DynamoDBTypeConverted(converter = InstantConverter.class)
-    private Instant createdAt;
+    public void setDocumentCategory(Integer documentCategory) {
+        this.documentCategory = documentCategory;
+    }
 
-    @DynamoDBAttribute(attributeName = "updatedAt")
-    @DynamoDBTypeConverted(converter = InstantConverter.class)
-    private Instant updatedAt;
+    @DynamoDbSecondarySortKey(indexNames = "memberId-documentSubCategory-index")
+    @DynamoDbAttribute("documentSubCategory")
+    public Integer getDocumentSubCategory() {
+        return documentSubCategory;
+    }
 
-    @DynamoDBAttribute(attributeName = "createdBy")
-    private String createdBy;
+    public void setDocumentSubCategory(Integer documentSubCategory) {
+        this.documentSubCategory = documentSubCategory;
+    }
 
-    @DynamoDBAttribute(attributeName = "updatedBy")
-    private String updatedBy;
+    @DynamoDbSecondarySortKey(indexNames = "memberId-createdAt-index")
+    @DynamoDbAttribute("createdAt")
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
 
-    @DynamoDBAttribute(attributeName = "notes")
-    private String notes;
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
 
-    @DynamoDBVersionAttribute
-    private Long version;
+    @DynamoDbAttribute("updatedAt")
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
+    @DynamoDbAttribute("createdBy")
+    public String getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(String createdBy) {
+        this.createdBy = createdBy;
+    }
+
+    @DynamoDbAttribute("updatedBy")
+    public String getUpdatedBy() {
+        return updatedBy;
+    }
+
+    public void setUpdatedBy(String updatedBy) {
+        this.updatedBy = updatedBy;
+    }
+
+    @DynamoDbAttribute("notes")
+    public String getNotes() {
+        return notes;
+    }
+
+    public void setNotes(String notes) {
+        this.notes = notes;
+    }
+
+    @DynamoDbVersionAttribute
+    @DynamoDbAttribute("version")
+    public Long getVersion() {
+        return version;
+    }
+
+    public void setVersion(Long version) {
+        this.version = version;
+    }
 }
