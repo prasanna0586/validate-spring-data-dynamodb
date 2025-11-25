@@ -1,7 +1,5 @@
 package org.example.dynamodb.service;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.model.*;
 import org.example.dynamodb.exception.OptimisticLockingException;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
@@ -15,7 +13,17 @@ import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.enhanced.dynamodb.DynamoDbEnhancedClient;
+import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
+import software.amazon.awssdk.enhanced.dynamodb.model.EnhancedGlobalSecondaryIndex;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
+import software.amazon.awssdk.services.dynamodb.model.ProjectionType;
+import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
 
+import java.net.URI;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -38,102 +46,75 @@ class DocumentMetadataServiceIntegrationTest {
             .withExposedPorts(8000)
             .withCommand("-jar DynamoDBLocal.jar -inMemory -sharedDb");
 
+    private static final String TABLE_NAME = "DocumentMetadata";
+
     @DynamicPropertySource
     static void dynamoDbProperties(DynamicPropertyRegistry registry) {
-        registry.add("aws.dynamodb.endpoint",
-                () -> "http://" + dynamoDbContainer.getHost() + ":" + dynamoDbContainer.getMappedPort(8000));
+        String endpoint = "http://" + dynamoDbContainer.getHost() + ":" + dynamoDbContainer.getMappedPort(8000);
+        registry.add("aws.dynamodb.endpoint", () -> endpoint);
         registry.add("aws.dynamodb.region", () -> "us-east-1");
         registry.add("aws.dynamodb.accessKey", () -> "dummy");
         registry.add("aws.dynamodb.secretKey", () -> "dummy");
-        registry.add("app.environment.prefix", () -> "test");
+        registry.add("app.environment.prefix", () -> "");
+
+        // Create table BEFORE Spring context loads
+        createTable(endpoint);
     }
 
     @Autowired
     private DocumentMetadataService documentMetadataService;
 
     @Autowired
-    private AmazonDynamoDB amazonDynamoDB;
+    private DynamoDbClient dynamoDbClient;
 
-    private static boolean tableCreated = false;
     private static final List<String> testDocumentIds = new ArrayList<>();
 
-    @BeforeEach
-    void setUp() {
-        if (!tableCreated) {
-            createTable();
-            tableCreated = true;
-        }
-    }
+    private static void createTable(String endpoint) {
+        DynamoDbClient client = DynamoDbClient.builder()
+                .endpointOverride(URI.create(endpoint))
+                .region(Region.US_EAST_1)
+                .credentialsProvider(StaticCredentialsProvider.create(
+                        AwsBasicCredentials.create("dummy", "dummy")))
+                .build();
 
-    @AfterAll
-    static void cleanup(@Autowired AmazonDynamoDB amazonDynamoDB) {
-        // Clean up all test documents
-        for (String docId : testDocumentIds) {
-            try {
-                amazonDynamoDB.deleteItem(new DeleteItemRequest()
-                        .withTableName("test-DocumentMetadata")
-                        .withKey(java.util.Collections.singletonMap(
-                                "uniqueDocumentId",
-                                new AttributeValue(docId))));
-            } catch (Exception e) {
-                // Ignore cleanup errors
-            }
-        }
+        DynamoDbEnhancedClient enhancedClient = DynamoDbEnhancedClient.builder()
+                .dynamoDbClient(client)
+                .build();
 
-        // Delete table
+        TableSchema<DocumentMetadata> tableSchema = TableSchema.fromBean(DocumentMetadata.class);
+
+        ProvisionedThroughput throughput = ProvisionedThroughput.builder()
+                .readCapacityUnits(5L)
+                .writeCapacityUnits(5L)
+                .build();
+
+        enhancedClient.table(TABLE_NAME, tableSchema).createTable(builder -> builder
+                .provisionedThroughput(throughput)
+                .globalSecondaryIndices(
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-createdAt-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build(),
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-documentCategory-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build(),
+                        EnhancedGlobalSecondaryIndex.builder()
+                                .indexName("memberId-documentSubCategory-index")
+                                .projection(p -> p.projectionType(ProjectionType.ALL))
+                                .provisionedThroughput(throughput)
+                                .build()
+                ));
+
         try {
-            amazonDynamoDB.deleteTable("test-DocumentMetadata");
-        } catch (Exception e) {
-            // Ignore if table doesn't exist
-        }
-    }
-
-    private void createTable() {
-        CreateTableRequest createTableRequest = new CreateTableRequest()
-                .withTableName("test-DocumentMetadata")
-                .withKeySchema(
-                        new KeySchemaElement("uniqueDocumentId", KeyType.HASH))
-                .withAttributeDefinitions(
-                        new AttributeDefinition("uniqueDocumentId", ScalarAttributeType.S),
-                        new AttributeDefinition("memberId", ScalarAttributeType.N),
-                        new AttributeDefinition("documentCategory", ScalarAttributeType.N),
-                        new AttributeDefinition("documentSubCategory", ScalarAttributeType.N),
-                        new AttributeDefinition("createdAt", ScalarAttributeType.S))
-                .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L))
-                .withGlobalSecondaryIndexes(
-                        // GSI 1: memberId-documentCategory-index
-                        new GlobalSecondaryIndex()
-                                .withIndexName("memberId-documentCategory-index")
-                                .withKeySchema(
-                                        new KeySchemaElement("memberId", KeyType.HASH),
-                                        new KeySchemaElement("documentCategory", KeyType.RANGE))
-                                .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                                .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L)),
-                        // GSI 2: memberId-documentSubCategory-index
-                        new GlobalSecondaryIndex()
-                                .withIndexName("memberId-documentSubCategory-index")
-                                .withKeySchema(
-                                        new KeySchemaElement("memberId", KeyType.HASH),
-                                        new KeySchemaElement("documentSubCategory", KeyType.RANGE))
-                                .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                                .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L)),
-                        // GSI 3: memberId-createdAt-index
-                        new GlobalSecondaryIndex()
-                                .withIndexName("memberId-createdAt-index")
-                                .withKeySchema(
-                                        new KeySchemaElement("memberId", KeyType.HASH),
-                                        new KeySchemaElement("createdAt", KeyType.RANGE))
-                                .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
-                                .withProvisionedThroughput(new ProvisionedThroughput(5L, 5L)));
-
-        amazonDynamoDB.createTable(createTableRequest);
-
-        // Wait for table to be active
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
+            Thread.sleep(2000);
+        } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
         }
+
+        client.close();
     }
 
     private DocumentMetadata createTestDocument(String id, Integer memberId, Integer category,
@@ -470,13 +451,13 @@ class DocumentMetadataServiceIntegrationTest {
     void testUpdateDocument() {
         // Given - Create and save document
         DocumentMetadata doc = createTestDocument("service-test16-doc1", 113, 1001, 2001, "user1");
-        documentMetadataService.saveDocument(doc);
+        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
 
-        // When - Update the document
-        doc.setNotes("Updated notes");
-        doc.setUpdatedBy("user2");
-        doc.setUpdatedAt(Instant.now());
-        DocumentMetadata updatedDoc = documentMetadataService.saveDocument(doc);
+        // When - Update the document (use returned doc with correct version)
+        savedDoc.setNotes("Updated notes");
+        savedDoc.setUpdatedBy("user2");
+        savedDoc.setUpdatedAt(Instant.now());
+        DocumentMetadata updatedDoc = documentMetadataService.saveDocument(savedDoc);
 
         // Then - Verify update
         assertThat(updatedDoc.getNotes()).isEqualTo("Updated notes");
@@ -580,7 +561,7 @@ class DocumentMetadataServiceIntegrationTest {
     void testOptimisticLocking_UpdateWithCorrectVersionSucceeds() {
         // Given - Create and save document
         DocumentMetadata doc = createTestDocument("service-test20-doc1", 117, 1001, 2001, "user1");
-        DocumentMetadata savedDoc = documentMetadataService.saveDocument(doc);
+        documentMetadataService.saveDocument(doc);
 
         // Simulate user retrieving the document after an update
         Optional<DocumentMetadata> userDoc = documentMetadataService.getDocumentById("service-test20-doc1");

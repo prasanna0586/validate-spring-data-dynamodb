@@ -1,6 +1,5 @@
 package org.example.dynamodb.service;
 
-import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import lombok.extern.slf4j.Slf4j;
 import org.example.dynamodb.exception.OptimisticLockingException;
 import org.example.dynamodb.model.DocumentMetadata;
@@ -8,6 +7,7 @@ import org.example.dynamodb.repository.DocumentMetadataRepository;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
+import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedException;
 
 import java.time.Instant;
 import java.util.List;

@@ -19,12 +19,12 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <aws-java-sdk.version>1.12.772</aws-java-sdk.version> 
+        <aws-java-sdk.version>2.38.1</aws-java-sdk.version>
         <spring.version>3.5.6</spring.version>
         <lombok.version>1.18.30</lombok.version>
         <maven.compiler.version>3.11.0</maven.compiler.version>
         <testcontainers.version>1.19.3</testcontainers.version>
-        <spring.data.dynamodb.version>6.0.4</spring.data.dynamodb.version>
+        <spring.data.dynamodb.version>7.0.0-SNAPSHOT</spring.data.dynamodb.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Starter -->
@@ -41,11 +41,9 @@
             <version>${spring.data.dynamodb.version}</version>
         </dependency>
 
-        <!-- AWS SDK v1 for DynamoDB -->
         <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-dynamodb</artifactId>
-            <version>${aws-java-sdk.version}</version>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>dynamodb-enhanced</artifactId>
         </dependency>
 
         <!-- Spring Boot Test -->
@@ -79,6 +77,18 @@
         </dependency>
 
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-java-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     <build>
         <plugins>
             <plugin>
