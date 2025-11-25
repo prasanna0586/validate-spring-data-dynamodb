@@ -16,14 +16,11 @@
     <description>Demo project for Spring Boot with DynamoDB</description>
     <properties>
         <java.version>21</java.version>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <aws-java-sdk.version>2.38.1</aws-java-sdk.version>
         <spring.version>3.5.6</spring.version>
         <lombok.version>1.18.30</lombok.version>
         <maven.compiler.version>3.11.0</maven.compiler.version>
-        <testcontainers.version>1.19.3</testcontainers.version>
+        <testcontainers.version>2.0.2</testcontainers.version>
         <spring.data.dynamodb.version>7.0.0-SNAPSHOT</spring.data.dynamodb.version>
     </properties>
     <dependencies>
@@ -65,7 +62,7 @@
         <dependency>
             <groupId>org.testcontainers</groupId>
             <artifactId>junit-jupiter</artifactId>
-            <version>${testcontainers.version}</version>
+            <version>1.21.3</version>
             <scope>test</scope>
         </dependency>
 
