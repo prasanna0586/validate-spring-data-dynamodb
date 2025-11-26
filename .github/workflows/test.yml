@@ -11,7 +11,8 @@ permissions:
   pull-requests: write
 
 jobs:
-  test:
+  jvm-test:
+    name: JVM Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -25,11 +26,50 @@ jobs:
           distribution: 'liberica'
           cache: maven
 
-      - name: Run tests
+      - name: Run JVM tests
         run: mvn clean verify --batch-mode
 
-      - name: Publish Test Results
+      - name: Publish JVM Test Results
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
           files: '**/target/surefire-reports/TEST-*.xml'
+          check_name: JVM Test Results
+
+  native-test:
+    name: Native Image Tests
+    runs-on: ubuntu-latest
+
+    services:
+      dynamodb:
+        image: amazon/dynamodb-local:latest
+        ports:
+          - 8000:8000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'graalvm'
+          cache: maven
+
+      - name: Start DynamoDB via Docker Compose
+        run: docker compose up -d
+
+      - name: Run Native tests
+        run: mvn clean verify -PnativeTest --batch-mode
+
+      - name: Publish Native Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: '**/target/surefire-reports/TEST-*.xml'
+          check_name: Native Test Results
+
+      - name: Stop Docker Compose
+        if: always()
+        run: docker compose down

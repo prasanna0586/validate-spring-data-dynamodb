@@ -1,0 +1,47 @@
+networks:
+  dynamodb-net:
+    driver: bridge
+
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb_local
+    command: "-jar DynamoDBLocal.jar -inMemory"
+    ports:
+      - "18000:8000"
+    networks:
+      - dynamodb-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8000 || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  dynamodb-setup:
+    image: amazon/aws-cli:latest
+    depends_on:
+      dynamodb:
+        condition: service_healthy
+    networks:
+      - dynamodb-net
+    environment:
+      AWS_ACCESS_KEY_ID: dummy
+      AWS_SECRET_ACCESS_KEY: dummy
+      AWS_DEFAULT_REGION: us-east-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        aws dynamodb create-table \
+          --table-name local_DocumentMetadata \
+          --attribute-definitions \
+            AttributeName=uniqueDocumentId,AttributeType=S \
+            AttributeName=memberId,AttributeType=N \
+            AttributeName=createdAt,AttributeType=S \
+            AttributeName=documentCategory,AttributeType=N \
+            AttributeName=documentSubCategory,AttributeType=N \
+          --key-schema AttributeName=uniqueDocumentId,KeyType=HASH \
+          --global-secondary-indexes \
+            '[{"IndexName":"memberId-createdAt-index","KeySchema":[{"AttributeName":"memberId","KeyType":"HASH"},{"AttributeName":"createdAt","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":5,"WriteCapacityUnits":5}},{"IndexName":"memberId-documentCategory-index","KeySchema":[{"AttributeName":"memberId","KeyType":"HASH"},{"AttributeName":"documentCategory","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":5,"WriteCapacityUnits":5}},{"IndexName":"memberId-documentSubCategory-index","KeySchema":[{"AttributeName":"memberId","KeyType":"HASH"},{"AttributeName":"documentSubCategory","KeyType":"RANGE"}],"Projection":{"ProjectionType":"ALL"},"ProvisionedThroughput":{"ReadCapacityUnits":5,"WriteCapacityUnits":5}}]' \
+          --provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5 \
+          --endpoint-url http://dynamodb:8000 \
+        && echo "Table created successfully"

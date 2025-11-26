@@ -3,7 +3,9 @@ package org.example.dynamodb.service;
 import org.example.dynamodb.exception.OptimisticLockingException;
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Slice;
@@ -38,6 +40,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @DisplayName("DocumentMetadataService Integration Tests")
+@DisabledInNativeImage
+@DisabledInAotMode
 class DocumentMetadataServiceIntegrationTest {
 
     @Container

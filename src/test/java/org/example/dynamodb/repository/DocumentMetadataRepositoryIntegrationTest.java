@@ -2,7 +2,9 @@ package org.example.dynamodb.repository;
 
 import org.example.dynamodb.model.DocumentMetadata;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.aot.DisabledInAotMode;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -36,6 +38,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
+@DisabledInNativeImage
+@DisabledInAotMode
 class DocumentMetadataRepositoryIntegrationTest {
 
     @Container
