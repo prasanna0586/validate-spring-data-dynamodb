@@ -110,19 +110,57 @@ app.environment.prefix=local
 
 ## How to Run
 
-### 1. Start DynamoDB Local (optional for manual testing)
+### 1. Start DynamoDB Local with Docker Compose
 ```bash
-docker run -p 8000:8000 amazon/dynamodb-local
+docker compose up -d
 ```
+This starts DynamoDB Local on port 18000 and creates the `DocumentMetadata` table automatically.
 
 ### 2. Run Tests
 ```bash
 mvn test
 ```
 
-### 3. Run Application
+### 3. Run Application (JVM)
 ```bash
 mvn spring-boot:run
+```
+
+## GraalVM Native Image
+
+### Build Native Image
+```bash
+mvn -Pnative clean spring-boot:build-image
+```
+
+### Run Native Container
+```bash
+docker run --rm -p 8080:8080 \
+    --network validate-spring-data-dynamodb_dynamodb-net \
+    -e DYNAMODB_ENDPOINT=http://dynamodb:8000 \
+    docker.io/library/validate-spring-data-dynamodb:1.0-0
+```
+
+### Test the API
+
+**Save a document:**
+```bash
+curl -X POST http://localhost:8080/api/documents \
+    -H "Content-Type: application/json" \
+    -d '{
+      "uniqueDocumentId": "doc-123",
+      "memberId": 1001,
+      "documentCategory": 100,
+      "documentSubCategory": 200,
+      "createdBy": "user1",
+      "updatedBy": "user1",
+      "notes": "Test document"
+    }'
+```
+
+**Get a document:**
+```bash
+curl http://localhost:8080/api/documents/doc-123
 ```
 
 ## SDK v1 to v2 Migration Notes
