@@ -19,7 +19,7 @@
         <aws-java-sdk.version>2.41.1</aws-java-sdk.version>
         <maven.compiler.version>3.14.1</maven.compiler.version>
         <lombok.version>1.18.42</lombok.version>
-        <spring.data.dynamodb.version>8.0.0-SNAPSHOT</spring.data.dynamodb.version>
+        <spring.data.dynamodb.version>8.0.0</spring.data.dynamodb.version>
     </properties>
     <dependencies>
         <!-- Spring Boot Starter Web -->
