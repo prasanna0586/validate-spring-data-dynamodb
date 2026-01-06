@@ -15,7 +15,7 @@
     <name>Validate Spring Data DynamoDB</name>
     <description>Demo project for Spring Boot with DynamoDB</description>
     <properties>
-        <java.version>21</java.version>
+        <java.version>25</java.version>
         <aws-java-sdk.version>2.41.1</aws-java-sdk.version>
         <maven.compiler.version>3.14.1</maven.compiler.version>
         <lombok.version>1.18.42</lombok.version>

@@ -3,6 +3,7 @@ package org.example.dynamodb.converter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.DisabledInNativeImage;
 import software.amazon.awssdk.enhanced.dynamodb.AttributeValueType;
 import software.amazon.awssdk.enhanced.dynamodb.EnhancedType;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -12,6 +13,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("InstantConverter Unit Tests")
+@DisabledInNativeImage
 class InstantConverterTest {
 
     private InstantConverter instantConverter;
