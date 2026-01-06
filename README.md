@@ -4,12 +4,12 @@ A reference implementation demonstrating how to use the [spring-data-dynamodb](h
 
 ## Prerequisites
 
-| Requirement                 | Version | Download                                                                 |
-|-----------------------------|---------|--------------------------------------------------------------------------|
-| Java                        | 21+     | [Liberica JDK 21](https://bell-sw.com/pages/downloads/#jdk-21-lts)       |
-| Maven                       | 3.8+    | [Apache Maven](https://maven.apache.org/download.cgi)                    |
-| Docker                      | Latest  | [Docker Desktop](https://www.docker.com/products/docker-desktop/)        |
-| GraalVM (for native builds) | 21+     | [Liberica NIK 21](https://bell-sw.com/pages/downloads/native-image-kit/) |
+| Requirement                 | Version | Download                                                                                 |
+|-----------------------------|---------|------------------------------------------------------------------------------------------|
+| Java                        | 25      | [Liberica JDK 25](https://bell-sw.com/pages/downloads/#jdk-25-lts)                       |
+| Maven                       | 3.8+    | [Apache Maven](https://maven.apache.org/download.cgi)                                    |
+| Docker                      | Latest  | [Docker Desktop](https://www.docker.com/products/docker-desktop/)                        |
+| GraalVM (for native builds) | 25      | [Liberica NIK 25](https://bell-sw.com/pages/downloads/native-image-kit/#nik-25-(jdk-25)) |
 
 ## Quick Start
 
@@ -343,11 +343,11 @@ For projects migrating from AWS SDK v1, here's a quick reference:
 
 ## Testing Strategy
 
-| Test Type | Location | Framework | DynamoDB Setup |
-|-----------|----------|-----------|----------------|
-| Unit Tests | `*Test.java` | JUnit 5 + Mockito | None (mocked) |
-| JVM Integration | `*IntegrationTest.java` | Testcontainers | Automatic |
-| Native Integration | `*NativeTest.java` | JUnit 5 | External (port 18000) |
+| Test Type          | Location                | Framework         | DynamoDB Setup        |
+|--------------------|-------------------------|-------------------|-----------------------|
+| Unit Tests         | `*Test.java`            | JUnit 6 + Mockito | None (mocked)         |
+| JVM Integration    | `*IntegrationTest.java` | Testcontainers    | Automatic             |
+| Native Integration | `*NativeTest.java`      | JUnit 6           | External (port 18000) |
 
 **Total Tests:** 75+ (repository, service, and converter tests)
 
