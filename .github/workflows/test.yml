@@ -68,7 +68,7 @@ jobs:
         uses: EnricoMi/publish-unit-test-result-action@v2
         if: always()
         with:
-          files: '**/target/surefire-reports/TEST-*Native*.xml'
+          files: '**/target/native-test-reports/TEST-*.xml'
           check_name: Native Test Results
 
       - name: Stop Docker Compose
